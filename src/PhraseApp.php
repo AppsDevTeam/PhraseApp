@@ -1,11 +1,11 @@
 <?php
 
-namespace ADT\PhraseApp;
+namespace ADT;
 
 define("LANG_DIR", APP_DIR . "/lang");
 
 
-class Synchronizer {
+class PhraseApp {
 	const GET = 1;
 	const POST = 2;
 	const PUT = 3;
