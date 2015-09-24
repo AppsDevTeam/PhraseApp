@@ -1,0 +1,21 @@
+{
+	"name": "adt/phraseApp",
+	"type": "library",
+	"description": "",
+	"keywords": [ "nette", "phraseapp", "translation" ],
+	"license": [ "BSD-3-Clause", "GPL-2.0", "GPL-3.0" ],
+	"authors": [
+		{
+			"name": "ADT",
+			"homepage": "http://appsdevteam.com"
+		}
+	],
+	"require": {
+		"nette/nette": ">=2.2.0"
+	},
+	"autoload": {
+		"psr-4": {
+			"ADT\\": "src/"
+		}
+	}
+}
