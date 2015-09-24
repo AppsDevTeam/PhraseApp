@@ -1,33 +1,130 @@
 <?php
 
-namespace ADT;
+namespace ADT\PhraseApp;
 
 define("LANG_DIR", APP_DIR . "/lang");
 
 
-class PhraseApp {
+class Synchronizer {
 	const GET = 1;
 	const POST = 2;
 	const PUT = 3;
 	const DELETE = 4;
-	const HOST = "https://phraseapp.com";
-	const LOGIN = "jakub@appsdevteam.com";
-	const PASSWORD = "3tryQS6y";
+	const HOST = "https://api.phraseapp.com";
+	const F_JSON = 'simple_json';
+
+	protected $appId = null;
+	protected $appDescription = null;
+	protected $authToken = null;
+	protected $defaultCode = null;
+	protected $filesDir = LANG_DIR;
+	protected $tagApp = null;
+	protected $tagFile = null;
+	protected $tagArray = null;
+	protected $tagAux = 'SUNKINS_SVETZDRAVI_KNT_WEB_CODES';	// @todo db codes
+	protected $filePrefix = 'messages';
+
+	protected $locales = null;
+	protected $defaultLocale = null;
+	/** @var \Symfony\Component\Yaml\Yaml */
+	protected $yamlService;
+	/** @var array */
+	protected $tempTranslationsArray = [];
+
+	/**
+	 * Localization keywords.
+	 * @var array
+	 */
+	public static $ingroredKeys = [ "zero", "one", "few", "many", "other" ];
 
 
-	protected function send($url, $method = self::GET, $data = array()) {
+///////////////////////////////////////////////////////////////////////////////////////// DEFAULT //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+	/**
+	 * @param array $params
+	 */
+	public function __construct(array $params) {
+		foreach ($params as $name => $value) {
+			if (!in_array($name, [ 'appId', 'appDescription', 'authToken', 'defaultCode', 'filesDir', 'tagApp', 'tagFile', 'tagArray', 'filePrefix' ])) {
+				throw new \Nette\InvalidArgumentException('Unknown parameters!');
+			}
+
+			$this->$name = $value;
+		}
+
+		if (!$this->appId || !$this->appDescription || !$this->authToken || !$this->defaultCode) {
+			throw new \Nette\InvalidArgumentException('Required parameters are not set!');
+		}
+
+		$this->getLocales();	// fill protected $locales
+
+		if (!$this->locales) {
+			throw new \Nette\InvalidArgumentException('Something is wrong - can not find locales!');
+		}
+
+		$this->defaultLocale = $this->getDefaultLocale();
+
+		if (!$this->defaultLocale) {
+			throw new \Nette\InvalidArgumentException('Something is wrong - can not find default locale!');
+		}
+
+		$this->yamlService = new \Symfony\Component\Yaml\Yaml();
+	}
+
+///////////////////////////////////////////////////////////////////////////// GETTERS AND SETTERS //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+	public function getTagApp() {
+		return $this->tagApp;
+	}
+
+	public function setTagApp($tag) {
+		$this->tagApp = $tag;
+	}
+
+	public function getTagFile() {
+		return $this->tagFile;
+	}
+
+	public function setTagFile($tag) {
+		$this->tagFile = $tag;
+	}
+
+	public function getTagArray() {
+		return $this->tagArray;
+	}
+
+	public function setTagArray($tag) {
+		$this->tagArray = $tag;
+	}
+
+///////////////////////////////////////////////////////////////////// GENERAL COMMUNICATION LAYER //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+	/**
+	 * @param $url
+	 * @param int $method
+	 * @param array $data
+	 * @return mixed|null
+	 */
+	protected function send($url, $method = self::GET, $data = []) {
 		$ch = curl_init();
+		$projectUrl = "/api/v2/projects/" . $this->appId . $url;
 		$dataString = http_build_query($data);
 
-		curl_setopt($ch, CURLOPT_URL, self::HOST . $url);
+		curl_setopt($ch, CURLOPT_URL, self::HOST . $projectUrl);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);	// removes problem: SSL certificate problem: certificate has expired
+
+		$headerDescription = 'User-Agent: ' . $this->appDescription;
+		$headerToken = 'Authorization: token ' . $this->authToken;
+
+		curl_setopt($ch, CURLOPT_HTTPHEADER, [ $headerDescription, $headerToken ]);
 
 		if ($method == self::GET) {
-			curl_setopt($ch, CURLOPT_URL, self::HOST . $url . "?" . $dataString);
+			curl_setopt($ch, CURLOPT_URL, self::HOST . $projectUrl . "?" . $dataString);
 			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "GET");
 		} else if ($method == self::POST) {
 			curl_setopt($ch, CURLOPT_POST, 1);
-			curl_setopt($ch, CURLOPT_POSTFIELDS, $dataString);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
 		} else if ($method == self::PUT) {
 			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
 		} else if ($method == self::DELETE) {
@@ -44,263 +141,362 @@ class PhraseApp {
 		return $result;
 	}
 
-	protected function authenticate($email, $password) {
-		$response = $this->send("/api/v1/sessions", self::POST, array("email" => $email, "password" => $password));
-		$return = false;
-
-		if ($response) {
-			$obj = json_decode($response);
-
-			if ($obj) {
-				if ($obj->success) {
-					$return = $obj->auth_token;
-				} else {
-					\Tracy\Debugger::log($obj->error);
-				}
-			}
-		}
-
-		return $return;
-	}
-
-	protected function bail($token) {
-		$response = $this->send("/api/v1/sessions", self::DELETE, array("auth_token" => $token));
-		$return = false;
-
-		if ($response) {
-			$obj = json_decode($response);
-
-			if ($obj) {
-				if ($obj->success) {
-					$return = true;
-				} else {
-					\Tracy\Debugger::log($obj->error);
-				}
-			}
-		}
-
-		return $return;
-	}
-
-	protected function getLocales($token) {
-		$response = $this->send("/api/v1/locales", self::GET, array("auth_token" => $token));
-		$return = false;
-
-		if ($response) {
-			$obj = json_decode($response);
-
-			if ($obj) {
-				$return = $obj;
-			}
-		}
-
-		return $return;
-	}
-
-	protected function getFile($token, $code, $format, $tag) {
-		$response = $this->send("/api/v1/translations/download", self::GET,
-				array(
-					"auth_token" => $token,
-					"locale" => $code,
-					"format" => $format,
-					"tag" => $tag
-				));
-		$return = false;
-
-		if ($response) {
-			$return = $response;
-		}
-
-		return $return;
-	}
-
-	protected function postFile($token, $code, $content, $format, $tags, $update = false) {
-		$response = $this->send("/api/v1/file_imports", self::POST,
-				array(
-					"auth_token" => $token,
-					"file_import[locale_code]" => $code,
-					"file_import[filename]" => "messages.yml",
-					"file_import[file_content]" => $content,
-	//				"file_import[format]" => $format,
-					"file_import[tag_names]" => $tags,
-					"file_import[update_translations]" => (int) $update
-				));
-		$return = false;
-
-		if ($response) {
-			$obj = json_decode($response);
-
-			if ($obj) {
-				if ($obj->success) {
-					$return = true;
-				} else {
-					\Tracy\Debugger::log($obj->error);
-				}
-			}
-		}
-
-		return $return;
-	}
-
-	protected function postArray($token, $code, $array, $format, $tags, $update = false) {
-		$dumper = new \Symfony\Component\Yaml\Yaml();
-
-		$content = $dumper->dump($array);
-
-		return $this->postFile($token, $code, $content, $format, $tags, $update);
-	}
-
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////
-	public function pullLocales() {
-		$ok = true;
-		$token = $this->authenticate(self::LOGIN, self::PASSWORD);
-
-		if (!$token) {
-			return false;
-		}
-
-		if ($locales = $this->getLocales($token)) {
-			return $locales;
+	/**
+	 * @return bool|mixed
+	 */
+	public function getLocales() {
+		if ($this->locales) {
+			$return = $this->locales;
 		} else {
-			$ok = false;
+			$return = false;
+			$response = $this->send("/locales", self::GET);
+
+			if ($response) {
+				$obj = json_decode($response);
+
+				if ($obj) {
+					$return = $this->locales = $obj;
+				}
+			}
 		}
 
-		return $this->bail($token) && $ok;
-	}
-
-	public function xtract(&$out = FALSE) {
-		$file = WWW_DIR . "/index.php";
-		$params = "config:".$_SERVER['HTTP_HOST']." kdyby:translation-extract --output-format='yml' --catalogue-language='cs'";
-		$output = array();
-		$result = -1;
-
-		exec("php " . $file . " " . $params, $output, $result);
-
-		if ($out !== FALSE) {
-			$out = $output;
-		}
-
-		return !$result;
-	}
-
-	public function push() {
-		$ok = true;
-		$token = $this->authenticate(self::LOGIN, self::PASSWORD);
-
-		if (!$token) {
-			return false;
-		}
-
-		$filename = LANG_DIR . "/messages.cs.yml";
-		$filecontent = file_get_contents($filename, "r");
-
-		if (!$filecontent) {
-			\Tracy\Debugger::log("Can not open file: " . $filename);
-
-			$ok = false;
-		}
-
-		$ok = $ok && $this->postFile($token, "cs-CZ", $filecontent, "yml", "ADT,SUNKINS_SVETZDRAVI_KNT_WEB");
-
-		return $this->bail($token) && $ok;
+		return $return;
 	}
 
 	/**
-	 * DB CODES!
-	 * @param $array
-	 * @param $langCode
+	 * @return mixed
+	 */
+	public function getDefaultLocale() {
+		foreach ($this->locales as $locale) {
+			if ($this->shortenCode($locale->code) == $this->defaultCode) {
+				return $locale;
+			}
+		}
+	}
+
+	/**
+	 * @param $localeId
+	 * @param $format
+	 * @param $tags
 	 * @return bool
 	 */
-	public function pushArray($array, $langCode = "cs-CZ") {
-		$ok = true;
-		$token = $this->authenticate(self::LOGIN, self::PASSWORD);
+	protected function getTranslations($localeId, $tags) {
+		$return = false;
+		$params = [ "file_format" => self::F_JSON ];
 
-		if (!$token) {
-			return false;
-		}
+		if ($tags) {
+			/* hopefully temporary workaround */
+			$array = explode(",", $tags);
 
-		$ok = $ok && $this->postArray($token, $langCode, $array, "yml", "ADT,SUNKINS_SVETZDRAVI_KNT_WEB_DB");
+			if (count($array) > 1) {
+				$index = array_search($this->tagApp, $array);
 
-		return $this->bail($token) && $ok;
-	}
-
-	public function pull() {
-		$ok = true;
-		$token = $this->authenticate(self::LOGIN, self::PASSWORD);
-
-		if (!$token) {
-			return false;
-		}
-
-		if ($locales = $this->getLocales($token)) {
-			foreach ($locales as $locale) {
-				$filecontent = $this->getFile($token, $locale->code, "simple_json", "SUNKINS_SVETZDRAVI_KNT_WEB");
-
-				if (!$filecontent) {
-					$ok = false;
-
-					continue;
+				if ($index !== false) {
+					unset($array[$index]);
 				}
-
-				$code = preg_replace("/-../", "", $locale->code);
-				$filename = LANG_DIR . "/messages." . $code . ".yml";
-				$file = fopen($filename, "w");
-
-				if (!$file) {
-					\Tracy\Debugger::log("Can not open file: " . $filename);
-
-					$ok = false;
-
-					continue;
-				}
-
-				$array = json_decode($filecontent, true);
-
-				$dumper = new \Symfony\Component\Yaml\Yaml();
-
-				$filecontent2 = $dumper->dump($array);
-
-				fwrite($file, $filecontent2);
-
-				fclose($file);
 			}
-		} else {
-			$ok = false;
+
+			$params["tag"] = implode(",", $array);
+			/* */
 		}
 
-		return $this->bail($token) && $ok;
+		$response = $this->send("/locales/" . $localeId . "/download", self::GET, $params);
+
+		if ($response) {
+			$this->tempTranslationsArray = json_decode($response, true);
+
+			if ($this->tempTranslationsArray) {
+				$return = true;
+			}
+		}
+
+		return $return;
 	}
 
 	/**
-	 * DB CODES!
-	 * @param $locale Lang code long (cs_CZ).
-	 * @return bool|\Nette\Utils\ArrayHash Array of arrays of translations.
+	 * @param $localeId
+	 * @param $path
+	 * @param $tags
+	 * @param null $format
+	 * @param bool|false $update
+	 * @return bool
 	 */
-	public function pullArray($locale) {
-		$ok = true;
-		$token = $this->authenticate(self::LOGIN, self::PASSWORD);
+	protected function postFile($path, $localeId, $tags, $format = null, $update = false) {
+		$return = false;
 
-		if (!$token) {
-			return false;
+		$params = [
+				"file" => new \CURLFile($path),
+				"locale_id" => $localeId,
+				"update_translations" => false
+		];
+//
+//		if ($format) {
+//			$params['file_format'] = $format;
+//		}
+
+		if ($tags) {
+			$params['tags'] = $tags;
 		}
 
-		$arrays = new \Nette\Utils\ArrayHash();
+		$response = $this->send("/uploads", self::POST, $params);
 
-		$filecontent = $this->getFile($token, $locale, "simple_json", "SUNKINS_SVETZDRAVI_KNT_WEB_DB");
+		if ($response) {
+			$obj = json_decode($response);
 
-		if (!$filecontent) {
+			if ($obj) {
+				if ($obj->state == "success") {
+					$return = true;
+				} else if ($obj->state == "processing") {
+					$return = $obj->id;
+				} else {
+					\Tracy\Debugger::log($obj->error);
+				}
+			}
+		}
+
+		return $return;
+	}
+
+//////////////////////////////////////////////////////////////////////////////// HELPER FUNCTIONS //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+	protected function shortenCode($codeLong) {
+		return preg_replace("/-../", "", $codeLong);
+	}
+
+	protected function buildTags(array $tags) {
+		foreach ($tags as $key => $tag) {
+			if ($tag === '') {
+				unset($tags[$key]);
+			}
+		}
+//dump(implode(',', $tags));die;
+		return implode(',', $tags);
+	}
+
+	/**
+	 * Projde pole a ke klicovym slovum prida s nakonci, aby PhraseApp nerozbil strukturu.
+	 * Pokud preklad obsahuje pouze &nbsp;, nahradi ho za prázdný řetězec.
+	 */
+	protected function filterTempArray() {
+		foreach ($this->tempTranslationsArray as $key => $translation) {
+			foreach (self::$ingroredKeys as $badKeyEnd) {
+				$newKey = preg_replace('/.' . $badKeyEnd . '$/', '.' . $badKeyEnd . 's', $key);
+			}
+
+			if ($translation == "&nbsp;") {
+				$translation = " ";
+			}
+
+			if ($key != $newKey) {
+				unset($this->tempTranslationsArray[$key]);
+			}
+
+			$this->tempTranslationsArray[$newKey] = $translation;
+		}
+	}
+
+	/**
+	 * Odfiltruje backslash-underscore, ktery tam strka Symfony/YML.
+	 * @param $path
+	 */
+	protected function filterFile($path) {
+		$content = file_get_contents($path);
+
+		$newContent = str_replace("\_", " ", $content);
+
+		return (bool) file_put_contents($path, $newContent);
+	}
+
+	/**
+	 * Projde pole překladů a zkontroluje jej zda klíč nekončí na zakazaná klíčová slova
+	 * Pokud jsou překaldy v pořádku, vrátí TRUE, jinak FALSE
+	 * @param array $array
+	 * @return boolean
+	 */
+	public static function checkKeys($array) {
+		foreach($array as $key => $val) {
+			$keys = explode(".", "$key");
+
+			if(in_array(end($keys), static::$ingroredKeys)) {
+				return FALSE;
+			}
+		}
+
+		return TRUE;
+	}
+
+////////////////////////////////////////////////////////////////////////////////// MAIN INTERFACE //
+////////////////////////////////////////////////////////////////////////////////////////////////////
+	/**
+	 * Pull translations for all locales from PhraseApp to yml files.
+	 * @param array $orTags OR-joined array of AND-joined arrays of tags.
+	 * @return bool
+	 */
+	public function pull(array $orTags = [ null ]) {
+		$ok = true;
+
+		/* pokud nahodou preda nekdo prazdne pole v OR urovni */
+		if (empty($orTags)) {
+			$orTags[] = null;
+		}
+
+		/* pokud jsou AND tagy null, prida se vychozi polni tag, tag aplikace se prida v pullArray */
+		foreach ($orTags as &$tags) {
+			if (is_null($tags)) {
+				$tags = [ $this->tagFile ];
+			}
+		}
+
+		/* pres vsechny jazyky v locales */
+		$arrays = $this->pullArray(null, $orTags);
+
+		foreach ($arrays as $code => $array) {
+			$path = $this->filesDir . "/" . $this->filePrefix . "." . $code . ".yml";
+			$content = $this->yamlService->dump($array);
+
+			file_put_contents($path, $content);
+
+			$this->filterFile($path);
+		}
+
+		return $ok;
+	}
+
+	/**
+	 * Pushes default language translations from yml file.
+	 * @param array $tags
+	 * @return bool
+	 */
+	public function push(array $tags = null) {
+		$ok = true;
+		$path = $this->filesDir . "/" . $this->filePrefix . "." . $this->defaultCode . ".yml";
+
+		if (!file_exists($path)) {
+			\Tracy\Debugger::log("Can not open file: '" . $path . "'");
+
 			$ok = false;
 		}
 
-		$code = preg_replace("/-../", "", $locale);
+		if ($ok) {
+			if (is_null($tags)) {
+				$tags = [ $this->tagFile ];
+			}
 
-		$arrays[$code] = json_decode($filecontent, true);
+			$tags[] = $this->tagApp;
 
-		if ($this->bail($token) && $ok) {
-			return $arrays;
+			$this->filterFile($path);
+
+			$ok = $this->postFile($path, $this->defaultLocale->id, $this->buildTags($tags));
 		}
 
-		return false;
+		return $ok;
+	}
+
+	/**
+	 * Checks success of asynchronous file upload.
+	 * @param $uploadId
+	 * @return bool
+	 */
+	public function checkPush($uploadId) {
+		$ok = false;
+		$response = $this->send("/uploads/" . $uploadId);
+
+		if ($response) {
+			$obj = json_decode($response);
+
+			if ($obj) {
+				if ($obj->state == "success") {
+					$ok = true;
+				} else {
+					\Tracy\Debugger::log($obj->error);
+				}
+			}
+		}
+
+		return $ok;
+	}
+
+	/**
+	 * Pulls array of translations to array.
+	 * @param array $orTags OR-joined array of AND-joined arrays of tags.
+	 * @param array $codes
+	 * @return bool|\Nette\Utils\ArrayHash
+	 */
+	public function pullArray(array $codes = null, array $orTags = [ null ]) {
+		$ok = true;
+		$arrays = new \Nette\Utils\ArrayHash();
+
+		/* pokud nahodou preda nekdo prazdne pole v OR urovni */
+		if (empty($orTags)) {
+			$orTags[] = null;
+		}
+
+		/* pokud jsou AND tagy null, prida se vychozi polni tag, vzdy se prida tag aplikace */
+		foreach ($orTags as &$tags) {
+			if (is_null($tags)) {
+				$tags = [ $this->tagArray ];
+			} else if (!is_array($tags)) {
+				throw new \Nette\InvalidArgumentException('Parameter $orTags must contain arrays!');
+			}
+
+			$tags[] = $this->tagApp;
+		}
+
+		/* pres vsechny jazyky v codes, nebo pres vsechny v locales, kdyz je codes null */
+		foreach ($this->locales as $locale) {
+			$code = $this->shortenCode($locale->code);
+
+			if (is_null($codes) || in_array($code, $codes)) {
+				if (!isset($arrays[$code])) {
+					$arrays[$code] = [];
+				}
+
+				/* pres vsechny OR tagy */
+				foreach($orTags as $tags) {
+					if (!$this->getTranslations($locale->id, $this->buildTags($tags))) {
+						$ok = false;
+
+						continue;
+					}
+
+					$this->filterTempArray();
+
+					$arrays[$code] += $this->tempTranslationsArray;
+				}
+			}
+		}
+
+		if ($ok) {
+			$ok = $arrays;
+		}
+
+		return $ok;
+	}
+
+	/**
+	 * Pushes default language translations from array.
+	 * @param $array
+	 * @param array $tags Array of tags joined by AND.
+	 * @return bool
+	 */
+	public function pushArray($array, array $tags = null) {
+		$tempPath = $this->filesDir . '/array.yml';
+		$content = $this->yamlService->dump($array);
+
+		file_put_contents($tempPath, $content);
+
+		if (is_null($tags)) {
+			$tags = [ $this->tagArray ];
+		}
+
+		$tags[] = $this->tagApp;
+
+		$this->filterFile($tempPath);
+
+		$ok = $this->postFile($tempPath, $this->defaultLocale->id, $this->buildTags($tags));
+
+		unlink($tempPath);
+
+		return $ok;
 	}
 }
