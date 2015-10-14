@@ -21,7 +21,7 @@ Add to your composer.json
 ````
 
 ````
-composer require adt/phraseApp
+composer require adt/phraseapp
 ````
 
 Recommended config in *.neon:
