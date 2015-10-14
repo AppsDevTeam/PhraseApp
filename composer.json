@@ -1,5 +1,5 @@
 {
-	"name": "adt/phraseApp",
+	"name": "adt/phraseapp",
 	"type": "library",
 	"description": "",
 	"keywords": [ "nette", "phraseapp", "translation" ],
