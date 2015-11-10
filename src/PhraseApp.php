@@ -243,7 +243,7 @@ class PhraseApp {
 			}
 		}
 		
-		$path = sys_get_temp_dir() . 'translations.yml';
+		$path = sys_get_temp_dir() . '/translations.yml';
 		file_put_contents($path, json_encode($translations));
 		
 		$params = [
