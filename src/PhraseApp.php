@@ -112,7 +112,11 @@ class PhraseApp {
 				$obj = json_decode($response);
 
 				if ($obj) {
-					$return = $this->locales = $obj;
+					$locales = [];
+					foreach ($obj as $locale) {
+						$locales[$this->shortenCode($locale->code)] = $locale;
+					}
+					$return = $this->locales = $locales;
 				}
 			}
 		}
@@ -156,9 +160,14 @@ class PhraseApp {
 		return FALSE;
 	}
 	
-	protected function replaceNbspForSpace($translations)
+	protected function filter($translations)
 	{
 		foreach ($translations as $key => $translation) {
+			if (empty($translation)) {
+				unset($translations[$key]);
+				continue;
+			}
+			
 			if ($translation == self::$substitution) {
 				$translations[$key] = " ";
 			}
@@ -191,7 +200,7 @@ class PhraseApp {
 		/* pres vsechny jazyky v locales */
 		foreach ($this->locales as $locale) {
 			if ($response = $this->send("/locales/" . $locale->id . "/download", self::GET, $params)) {
-				$locales[$this->shortenCode($locale->code)] = $this->replaceNbspForSpace(json_decode($response, TRUE));
+				$locales[$this->shortenCode($locale->code)] = $this->filter(json_decode($response, TRUE));
 			} else {
 				throw new \Exception('Error');
 			}
@@ -201,7 +210,7 @@ class PhraseApp {
 	}
 	
 	public function pull($lastUpdate, $tag = NULL)
-	{		
+	{				
 		$locales = [];
 
 		$lastUpdate = new \DateTime($lastUpdate);
@@ -218,9 +227,9 @@ class PhraseApp {
 		}
 		
 		foreach ($locales as $locale => $translations) {
-			$locales[$locale] = $this->replaceNbspForSpace($translations);
+			$locales[$locale] = $this->filter($translations);
 		}
-		
+
 		return $locales;
 	}
 	
@@ -231,7 +240,7 @@ class PhraseApp {
 	 * @param bool|false $update
 	 * @return bool
 	 */
-	public function push(array $translations, array $tags = []) 
+	public function push(array $translations, array $tags = [], $update = FALSE, $locale = NULL) 
 	{	
 		if ($key = self::endsWithForbiddenWord($translations)) {
 			throw new \Exception('Key ' . $key . ' ends with a forbidden word.');
@@ -249,8 +258,8 @@ class PhraseApp {
 		$params = [
 				"file" => new \CURLFile($path),
 				"file_format" => self::F_JSON,
-				"locale_id" => $this->defaultLocale->id,
-				"update_translations" => false
+				"locale_id" => ($locale ? $this->getLocales()[$locale]->id : $this->defaultLocale->id),
+				"update_translations" => $update
 		];
 
 		if ($tags) {
