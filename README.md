@@ -10,16 +10,6 @@ Upstream push does not update translations (just adds).
 Installation via composer
 ------------
 
-Add to your composer.json
-````
-"repositories": [
-  {
-    "type": "git",
-    "url": "https://github.com/AppsDevTeam/PhraseApp.git"
-  }
-]
-````
-
 ````
 composer require adt/phraseapp
 ````
