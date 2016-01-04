@@ -33,11 +33,6 @@ parameters:
 		appDescription: <yourCompanyOrProjectDescriptionWithEmail>
 		authToken: <authorizationToken>
 		defaultCode: <shortLanguageCodeForExample 'cs'>
-		filesDir: '%appDir%/lang'
-		tagApp: <appTagUsedForWholeCommunication>
-		tagFile: <fileTagUsedForFileImportExport>
-		tagArray: 'SUNKINS_SVETZDRAVI_KNT_WEB_DB'
-		filePrefix: 'messages'
 
 services:
 	- ADT\PhraseApp(%phraseapp%)
