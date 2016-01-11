@@ -217,13 +217,20 @@ class PhraseApp {
 		$lastUpdate->setTimezone(new \DateTimeZone('UTC'));
 		
 		$params = [
-			'q' => 'updated_at:>=' . $lastUpdate->format('c') . ($tag ? ' tags:' . $tag : '')
+			'q' => 'updated_at:>=' . $lastUpdate->format('c') . ($tag ? ' tags:' . $tag : ''),
+			'page' => 1,
 		];
 			
-		if ($response = $this->send('/translations', self::GET, $params)) {
+		while ($response = $this->send('/translations', self::GET, $params)) {
+			if (empty(json_decode($response))) {
+				break;
+			}
+
 			foreach (json_decode($response) as $translation) {
 				$locales[$this->shortenCode($translation->locale->code)][$translation->key->name] = $translation->content;	
 			}
+
+			$params['page']++;
 		}
 		
 		foreach ($locales as $locale => $translations) {
