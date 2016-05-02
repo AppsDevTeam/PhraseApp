@@ -23,7 +23,7 @@ class PhraseApp {
 
 	///////////////////////////////////////////////////////////////////////////////////////// DEFAULT //
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	
+
 	/**
 	 * @param array $params
 	 */
@@ -55,7 +55,7 @@ class PhraseApp {
 
 	///////////////////////////////////////////////////////////////////// GENERAL COMMUNICATION LAYER //
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	
+
 	/**
 	 * @param $url
 	 * @param int $method
@@ -137,7 +137,7 @@ class PhraseApp {
 
 	//////////////////////////////////////////////////////////////////////////////// HELPER FUNCTIONS //
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	
+
 	protected function shortenCode($codeLong) {
 		return preg_replace("/-../", "", $codeLong);
 	}
@@ -159,7 +159,7 @@ class PhraseApp {
 
 		return FALSE;
 	}
-	
+
 	protected function filter($translations)
 	{
 		foreach ($translations as $key => $translation) {
@@ -167,12 +167,12 @@ class PhraseApp {
 				unset($translations[$key]);
 				continue;
 			}
-			
+
 			if ($translation == self::$substitution) {
 				$translations[$key] = " ";
 			}
 		}
-		
+
 		return $translations;
 	}
 
@@ -185,18 +185,18 @@ class PhraseApp {
 	 * @param string $tag
 	 * @return bool|\Nette\Utils\ArrayHash
 	 */
-	public function pullLocales($tag = NULL) 
+	public function pullLocales($tag = NULL)
 	{
 		$locales = [];
 
-		$params = [ 
+		$params = [
 			"file_format" => self::F_JSON,
 		];
 
 		if ($tag) {
 			$params['tag'] = $tag;
 		}
-		
+
 		/* pres vsechny jazyky v locales */
 		foreach ($this->locales as $locale) {
 			if ($response = $this->send("/locales/" . $locale->id . "/download", self::GET, $params)) {
@@ -208,38 +208,38 @@ class PhraseApp {
 
 		return $locales;
 	}
-	
+
 	public function pull($lastUpdate, $tag = NULL)
-	{				
+	{
 		$locales = [];
 
 		$lastUpdate = new \DateTime($lastUpdate);
 		$lastUpdate->setTimezone(new \DateTimeZone('UTC'));
-		
+
 		$params = [
 			'q' => 'updated_at:>=' . $lastUpdate->format('c') . ($tag ? ' tags:' . $tag : ''),
 			'page' => 1,
 		];
-			
+
 		while ($response = $this->send('/translations', self::GET, $params)) {
 			if (empty(json_decode($response))) {
 				break;
 			}
 
 			foreach (json_decode($response) as $translation) {
-				$locales[$this->shortenCode($translation->locale->code)][$translation->key->name] = $translation->content;	
+				$locales[$this->shortenCode($translation->locale->code)][$translation->key->name] = $translation->content;
 			}
 
 			$params['page']++;
 		}
-		
+
 		foreach ($locales as $locale => $translations) {
 			$locales[$locale] = $this->filter($translations);
 		}
 
 		return $locales;
 	}
-	
+
 	/**
 	 * @param $translations
 	 * @param $tags
@@ -247,21 +247,21 @@ class PhraseApp {
 	 * @param bool|false $update
 	 * @return bool
 	 */
-	public function push(array $translations, array $tags = [], $update = FALSE, $locale = NULL) 
-	{	
+	public function push(array $translations, array $tags = [], $update = FALSE, $locale = NULL)
+	{
 		if ($key = self::endsWithForbiddenWord($translations)) {
 			throw new \Exception('Key ' . $key . ' ends with a forbidden word.');
 		}
-		
+
 		foreach ($translations as $key => $translation) {
 			if (empty(trim($translation))) {
 				$translations[$key] = self::$substitution;
 			}
 		}
-		
+
 		$path = sys_get_temp_dir() . '/translations.yml';
 		file_put_contents($path, json_encode($translations));
-		
+
 		$params = [
 				"file" => new \CURLFile($path),
 				"file_format" => self::F_JSON,
@@ -277,7 +277,7 @@ class PhraseApp {
 
 		if ($response) {
 			$obj = json_decode($response);
-			
+
 			if ($obj) {
 				if ($obj->state == "success") {
 					return TRUE;
@@ -290,7 +290,17 @@ class PhraseApp {
 		}
 
 		unlink($path);
-		
+
 		return false;
-	}	
+	}
+
+	/**
+	 * Smaže daný klíč z phraseappu.
+	 * https://phraseapp.com/docs/api/v2/keys/#destroy
+	 *
+	 * @param string $translationKey
+	 */
+	public function delete($translationKey) {
+		$response = $this->send("/keys/". $translationKey, self::DELETE);
+	}
 }
