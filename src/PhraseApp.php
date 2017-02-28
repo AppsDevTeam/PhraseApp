@@ -284,7 +284,7 @@ class PhraseApp {
 				} else if ($obj->state == "processing") {
 					return $obj->id;
 				} else {
-					throw new \Exception($obj->error);
+					throw new \Exception();
 				}
 			}
 		}
