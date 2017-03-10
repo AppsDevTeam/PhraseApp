@@ -281,10 +281,10 @@ class PhraseApp {
 			if ($obj) {
 				if ($obj->state == "success") {
 					return TRUE;
-				} else if ($obj->state == "processing") {
-					return $obj->id;
+				} elseif ($obj->state == "error") {
+					throw new \Exception($obj->error);
 				} else {
-					throw new \Exception();
+					return $obj->id;
 				}
 			}
 		}
