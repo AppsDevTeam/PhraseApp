@@ -301,6 +301,18 @@ class PhraseApp {
 	 * @param string $translationKey
 	 */
 	public function delete($translationKey) {
-		$response = $this->send("/keys/". $translationKey, self::DELETE);
+		$params = [
+			'q' => "name:$translationKey"
+		];
+
+		$response = $this->send("/keys", self::DELETE, $params);
+	}
+
+	public function deleteByTag($tag) {
+		$params = [
+			'q' => "tags:$tag"
+		];
+
+		$response = $this->send("/keys", self::DELETE, $params);
 	}
 }
