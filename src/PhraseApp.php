@@ -70,6 +70,7 @@ class PhraseApp {
 		curl_setopt($ch, CURLOPT_URL, self::HOST . $projectUrl);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);	// removes problem: SSL certificate problem: certificate has expired
+		curl_setopt($ch,CURLOPT_FAILONERROR,true);
 
 		$headerDescription = 'User-Agent: ' . $this->appDescription;
 		$headerToken = 'Authorization: token ' . $this->authToken;
@@ -92,6 +93,11 @@ class PhraseApp {
 		}
 
 		$result = curl_exec($ch);
+
+		if (curl_errno($ch)) {
+
+			throw new \Exception(curl_error($ch) . ' ' . $result);
+		}
 
 		curl_close($ch);
 
@@ -199,11 +205,9 @@ class PhraseApp {
 
 		/* pres vsechny jazyky v locales */
 		foreach ($this->locales as $locale) {
-			if ($response = $this->send("/locales/" . $locale->id . "/download", self::GET, $params)) {
-				$locales[$this->shortenCode($locale->code)] = $this->filter(json_decode($response, TRUE));
-			} else {
-				throw new \Exception('Error');
-			}
+
+			$response = $this->send("/locales/" . $locale->id . "/download", self::GET, $params);
+			$locales[$this->shortenCode($locale->code)] = $this->filter(json_decode($response, TRUE));
 		}
 
 		return $locales;
@@ -222,6 +226,7 @@ class PhraseApp {
 		];
 
 		while ($response = $this->send('/translations', self::GET, $params)) {
+
 			if (empty(json_decode($response))) {
 				break;
 			}
@@ -313,6 +318,6 @@ class PhraseApp {
 			'q' => "tags:$tag"
 		];
 
-		$response = $this->send("/keys", self::DELETE, $params);
+		return $this->send("/keys", self::DELETE, $params);
 	}
 }
