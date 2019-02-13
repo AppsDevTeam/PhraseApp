@@ -15,7 +15,9 @@ class PhraseApp {
 	protected $authToken = null;
 	protected $defaultCode = null;
 
-	protected $locales = null;
+	/** @var array $locales */
+	protected $locales = [];
+	/** @var \stdClass $defaultLocale */
 	protected $defaultLocale = null;
 
 	public static $forbiddenKeys = [ "zero", "one", "few", "many", "other" ];
@@ -38,18 +40,6 @@ class PhraseApp {
 
 		if (!$this->appId || !$this->appDescription || !$this->authToken || !$this->defaultCode) {
 			throw new \Nette\InvalidArgumentException('Required parameters are not set!');
-		}
-
-		$this->getLocales();	// fill protected $locales
-
-		if (!$this->locales) {
-			throw new \Nette\InvalidArgumentException('Something is wrong - can not find locales!');
-		}
-
-		$this->defaultLocale = $this->getDefaultLocale();
-
-		if (!$this->defaultLocale) {
-			throw new \Nette\InvalidArgumentException('Something is wrong - can not find default locale!');
 		}
 	}
 
@@ -105,40 +95,48 @@ class PhraseApp {
 	}
 
 	/**
-	 * @return bool|mixed
+	 * @return array
+	 * @throws \Exception
 	 */
-	public function getLocales() {
+	public function getLocales() 
+	{
 		if ($this->locales) {
-			$return = $this->locales;
-		} else {
-			$return = false;
-			$response = $this->send("/locales", self::GET);
+			return $this->locales;
+		}
 
-			if ($response) {
-				$obj = json_decode($response);
-
-				if ($obj) {
-					$locales = [];
-					foreach ($obj as $locale) {
-						$locales[$this->shortenCode($locale->code)] = $locale;
-					}
-					$return = $this->locales = $locales;
+		$response = $this->send("/locales", self::GET);
+		if ($response) {
+			$obj = json_decode($response);
+			if ($obj) {
+				foreach ($obj as $locale) {
+					$this->locales[$this->shortenCode($locale->code)] = $locale;
 				}
+
+				return $this->locales;
 			}
 		}
 
-		return $return;
+		throw new \Nette\InvalidArgumentException('Something is wrong - can not find locales!');
 	}
 
 	/**
-	 * @return mixed
+	 * @return \stdClass
+	 * @throws \Exception
 	 */
-	public function getDefaultLocale() {
-		foreach ($this->locales as $locale) {
+	public function getDefaultLocale()
+	{
+		if ($this->defaultLocale) {
+			return $this->defaultLocale;
+		}
+
+		/** @var \stdClass $locale */
+		foreach ($this->getLocales() as $locale) {
 			if ($this->shortenCode($locale->code) == $this->defaultCode) {
-				return $locale;
+				return $this->defaultLocale = $locale;
 			}
 		}
+
+		throw new \Nette\InvalidArgumentException('Something is wrong - can not find default locale!');
 	}
 
 	//////////////////////////////////////////////////////////////////////////////// HELPER FUNCTIONS //
@@ -204,8 +202,7 @@ class PhraseApp {
 		}
 
 		/* pres vsechny jazyky v locales */
-		foreach ($this->locales as $locale) {
-
+		foreach ($this->getLocales() as $locale) {
 			$response = $this->send("/locales/" . $locale->id . "/download", self::GET, $params);
 			$locales[$this->shortenCode($locale->code)] = $this->filter(json_decode($response, TRUE));
 		}
@@ -270,7 +267,7 @@ class PhraseApp {
 		$params = [
 				"file" => new \CURLFile($path),
 				"file_format" => self::F_JSON,
-				"locale_id" => ($locale ? $this->getLocales()[$locale]->id : $this->defaultLocale->id),
+				"locale_id" => ($locale ? $this->getLocales()[$locale]->id : $this->getDefaultLocale()->id),
 				"update_translations" => $update
 		];
 
